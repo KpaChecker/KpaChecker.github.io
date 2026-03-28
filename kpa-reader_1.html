@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPA Reader — DX2 / DX3</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --bg:       #f5f2ed;
+    --surface:  #faf8f5;
+    --border:   #d4cfc8;
+    --border2:  #bbb5ad;
+    --text:     #2a2520;
+    --dim:      #7a7268;
+    --accent:   #2a5caa;
+    --green:    #2d6e3e;
+    --red:      #a02828;
+    --orange:   #a05c18;
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-height: 100vh;
+    padding-bottom: 36px;
+  }
+
+  header {
+    background: var(--text);
+    color: var(--bg);
+    padding: 11px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  header h1 {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .05em;
+  }
+
+  header .sep { color: #555; margin: 0 2px; }
+  header .sub { font-size: 11px; color: #999; }
+
+  .badges { margin-left: auto; display: flex; gap: 6px; }
+  .badge {
+    font-size: 10px; font-weight: 600; padding: 1px 6px;
+    border: 1px solid #555; color: #ccc; border-radius: 2px;
+  }
+
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 18px 18px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border2);
+    border-radius: 4px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    background: var(--surface);
+    transition: border-color .15s, background .15s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: #eef2f9; }
+  .drop-zone input { display: none; }
+  .drop-main { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .drop-sub { font-size: 11px; color: var(--dim); }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 3px; }
+
+  .card-head {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px; font-weight: 600;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--dim);
+    display: flex; align-items: center; gap: 7px;
+    background: #edeae5;
+  }
+  .card-head .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border2); }
+  .card-head.ok   .dot { background: var(--green); }
+  .card-head.info .dot { background: var(--accent); }
+  .card-head.warn .dot { background: var(--orange); }
+
+  .card-body { padding: 12px; }
+
+  .info-table { width: 100%; border-collapse: collapse; }
+  .info-table tr+tr td { border-top: 1px solid #edeae5; }
+  .info-table td { padding: 4px 6px; vertical-align: top; line-height: 1.5; }
+  .info-table td:first-child { color: var(--dim); font-size: 11px; width: 110px; white-space: nowrap; padding-right: 12px; }
+  .info-table td:last-child { word-break: break-all; }
+
+  .ok   { color: var(--green); }
+  .err  { color: var(--red); }
+  .warn { color: var(--orange); }
+  .hi   { color: var(--accent); }
+
+  .tab-bar { display: flex; border-bottom: 1px solid var(--border); background: #edeae5; }
+  .tab-btn {
+    padding: 7px 14px; font-family: var(--mono); font-size: 11px; font-weight: 500;
+    color: var(--dim); background: none; border: none; border-bottom: 2px solid transparent;
+    cursor: pointer; letter-spacing: .04em; transition: color .1s; margin-bottom: -1px;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface); }
+
+  .tab-pane { display: none; padding: 12px; }
+  .tab-pane.active { display: block; }
+
+  .hex-wrap { max-height: 280px; overflow-y: auto; font-size: 12px; line-height: 1.8; }
+  .hex-line { display: flex; gap: 12px; }
+  .hex-addr { color: var(--dim); min-width: 56px; }
+  .hex-bytes { flex: 1; }
+  .hex-ascii { color: var(--dim); white-space: pre; }
+  .hl-magic   { color: var(--green); font-weight: 600; }
+  .hl-header  { color: var(--orange); }
+  .hl-payload { color: var(--accent); }
+
+  .legend { display: flex; gap: 16px; margin-bottom: 8px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--dim); }
+  .legend-swatch { width: 9px; height: 9px; border-radius: 2px; }
+
+  .entropy-bars {
+    display: flex; gap: 2px; height: 40px; align-items: flex-end;
+    border-bottom: 1px solid var(--border); margin: 8px 0 4px;
+  }
+  .ent-seg { flex: 1; min-height: 2px; border-radius: 1px 1px 0 0; }
+  .entropy-label-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--dim); }
+
+  .strings-list { max-height: 200px; overflow-y: auto; font-size: 12px; line-height: 1.6; }
+  .str-row { display: flex; gap: 12px; padding: 2px 0; border-bottom: 1px solid #edeae5; }
+  .str-off { color: var(--dim); min-width: 60px; font-size: 11px; }
+  .str-val { color: var(--green); word-break: break-all; }
+
+  .pbar-wrap { height: 5px; background: var(--border); border-radius: 2px; overflow: hidden; margin: 8px 0; }
+  .pbar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s; width: 0%; }
+
+  .status-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 26px;
+    background: var(--text); color: #aaa; font-family: var(--mono); font-size: 11px;
+    display: flex; align-items: center; padding: 0 16px; gap: 20px; z-index: 100;
+  }
+  .s-ok  { color: #7ec88a; }
+  .s-err { color: #e07070; }
+
+  .empty { color: var(--dim); font-size: 11px; padding: 4px 0; font-style: italic; }
+
+  pre.raw {
+    font-size: 11px; color: var(--orange); white-space: pre-wrap;
+    word-break: break-all; line-height: 1.7; max-height: 200px; overflow-y: auto;
+  }
+
+  @media (max-width: 640px) { .cols { grid-template-columns: 1fr; } .badges { display: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>kpa-reader</h1>
+  <span class="sep">/</span>
+  <span class="sub">VTech KidiZoom app parser</span>
+  <div class="badges">
+    <span class="badge">DX2</span>
+    <span class="badge">DX3</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".kpa,*">
+    <div class="drop-main">Drop a .kpa file here, or click to browse</div>
+    <div class="drop-sub">Parses header, payload, hex dump, strings and entropy</div>
+  </div>
+
+  <div class="cols">
+    <div class="card">
+      <div class="card-head ok" id="headerHead"><span class="dot"></span>File Header</div>
+      <div class="card-body">
+        <div class="empty" id="headerEmpty">No file loaded.</div>
+        <table class="info-table" id="headerTable" style="display:none"></table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head info"><span class="dot"></span>Payload</div>
+      <div class="card-body">
+        <div class="empty" id="payloadEmpty">No file loaded.</div>
+        <div id="payloadContent" style="display:none">
+          <table class="info-table" id="payloadTable"></table>
+          <div class="pbar-wrap"><div class="pbar-fill" id="pbarFill"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="hex">Hex dump</button>
+      <button class="tab-btn" data-tab="strings">Strings</button>
+      <button class="tab-btn" data-tab="entropy">Entropy</button>
+      <button class="tab-btn" data-tab="raw">Raw header</button>
+    </div>
+
+    <div class="tab-pane active" id="tab-hex">
+      <div class="empty" id="hexEmpty">Load a file to view hex dump.</div>
+      <div id="hexContent" style="display:none">
+        <div class="legend">
+          <div class="legend-item"><div class="legend-swatch" style="background:var(--green)"></div>magic (VTKiDi)</div>
+          <div class="legend-item"><div class="legend-swatch" style="background:var(--orange)"></div>header bytes</div>
+          <div class="legend-item"><div class="legend-swatch" style="background:var(--accent)"></div>payload</div>
+        </div>
+        <div class="hex-wrap" id="hexWrap"></div>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="tab-strings">
+      <div class="empty" id="stringsEmpty">No printable strings found.</div>
+      <div class="strings-list" id="stringsList" style="display:none"></div>
+    </div>
+
+    <div class="tab-pane" id="tab-entropy">
+      <div class="empty" id="entropyEmpty">Load a file.</div>
+      <div id="entropyContent" style="display:none">
+        <div style="font-size:11px;color:var(--dim)">Entropy per 256-byte block. High = likely encrypted/compressed.</div>
+        <div class="entropy-bars" id="entropyBars"></div>
+        <div class="entropy-label-row"><span>0x0000</span><span id="entropyEnd"></span></div>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="tab-raw">
+      <div class="empty" id="rawEmpty">Load a file.</div>
+      <pre class="raw" id="rawPre" style="display:none"></pre>
+    </div>
+  </div>
+
+</div>
+
+<div class="status-bar">
+  <span id="statusMsg">ready</span>
+  <span id="statusSize"></span>
+  <span id="statusDevice"></span>
+</div>
+
+<script>
+const MAGIC = "VTKiDi";
+const HEADER_SIZE = 16;
+
+function parseKPA(buf) {
+  const bytes = new Uint8Array(buf);
+  const dec = new TextDecoder('ascii', { fatal: false });
+  const magic = dec.decode(bytes.slice(0, 6));
+  const valid = magic === MAGIC;
+  const version = (bytes[6] << 8) | bytes[7];
+  const appId   = (bytes[8] << 8) | bytes[9];
+  const flags   = (bytes[10] << 8) | bytes[11];
+  const reserved = Array.from(bytes.slice(12, 16));
+  let device = 'unknown';
+  if (version >= 0x0300 && version < 0x0400) device = 'DX3';
+  else if (version >= 0x0200 && version < 0x0300) device = 'DX2';
+  else if (version !== 0) device = 'DX2/DX3 (ambiguous)';
+  return { valid, magic, version, appId, flags, reserved,
+    headerBytes: Array.from(bytes.slice(0, HEADER_SIZE)),
+    payloadOffset: HEADER_SIZE, payloadSize: bytes.length - HEADER_SIZE,
+    device, allBytes: bytes };
+}
+
+function calcEntropy(bytes, bs=256) {
+  const out = [];
+  for (let i=0;i<bytes.length;i+=bs) {
+    const block=bytes.slice(i,i+bs), freq=new Array(256).fill(0);
+    for (const b of block) freq[b]++;
+    let h=0; const len=block.length;
+    for (const f of freq) { if(f>0){const p=f/len;h-=p*Math.log2(p);} }
+    out.push(h/8);
+  }
+  return out;
+}
+
+function extractStrings(bytes, min=4) {
+  const res=[]; let cur='', start=0;
+  for (let i=0;i<bytes.length;i++) {
+    const c=bytes[i];
+    if (c>=0x20&&c<=0x7e) { if(!cur)start=i; cur+=String.fromCharCode(c); }
+    else { if(cur.length>=min) res.push({off:start,str:cur}); cur=''; }
+  }
+  if(cur.length>=min) res.push({off:start,str:cur});
+  return res;
+}
+
+const hb = b => b.toString(16).padStart(2,'0');
+const hw = w => w.toString(16).padStart(4,'0');
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function addRow(tbl, key, val, cls='') {
+  const tr=tbl.insertRow();
+  tr.insertCell().textContent=key;
+  const v=tr.insertCell(); v.textContent=val; if(cls)v.className=cls;
+}
+
+function render(kpa) {
+  const {valid,magic,version,appId,flags,reserved,headerBytes,
+         payloadOffset,payloadSize,device,allBytes} = kpa;
+
+  document.getElementById('statusMsg').innerHTML =
+    valid ? '<span class="s-ok">✓ valid kpa</span>'
+          : '<span class="s-err">✗ bad magic — not a kpa file</span>';
+  document.getElementById('statusSize').textContent = allBytes.length + ' bytes';
+  document.getElementById('statusDevice').textContent = 'device: ' + device;
+
+  // header
+  document.getElementById('headerEmpty').style.display='none';
+  const ht=document.getElementById('headerTable'); ht.style.display=''; ht.innerHTML='';
+  addRow(ht,'magic',       magic,                        valid?'ok':'err');
+  addRow(ht,'valid',       valid?'yes':'no — bad magic', valid?'ok':'err');
+  addRow(ht,'device',      device,                       device.includes('DX3')?'warn':'hi');
+  addRow(ht,'version',     '0x'+hw(version));
+  addRow(ht,'app id',      '0x'+hw(appId));
+  addRow(ht,'flags',       '0x'+hw(flags));
+  addRow(ht,'reserved',    reserved.map(hb).join(' '));
+  addRow(ht,'payload off', '0x'+payloadOffset.toString(16).padStart(4,'0'));
+  addRow(ht,'payload len', payloadSize+' bytes');
+
+  // payload
+  document.getElementById('payloadEmpty').style.display='none';
+  document.getElementById('payloadContent').style.display='';
+  const pt=document.getElementById('payloadTable'); pt.innerHTML='';
+  const payload=allBytes.slice(payloadOffset);
+  const ents=calcEntropy(payload);
+  const avg=ents.reduce((a,b)=>a+b,0)/ents.length;
+  const enc=avg>0.85;
+  addRow(pt,'size',      payloadSize+' bytes','hi');
+  addRow(pt,'entropy',   (avg*100).toFixed(1)+'%', enc?'warn':'ok');
+  addRow(pt,'encrypted', enc?'likely yes':'likely no', enc?'warn':'ok');
+  addRow(pt,'first 8 B', Array.from(payload.slice(0,8)).map(hb).join(' '));
+  const pm=new TextDecoder('ascii',{fatal:false}).decode(payload.slice(0,4));
+  let ptype=enc?'encrypted blob':'raw data';
+  if(pm.startsWith('PK'))ptype='zip/jar archive';
+  else if(pm.startsWith('\x7fELF'))ptype='elf binary';
+  else if(payload[0]===0xFF&&payload[1]===0xD8)ptype='jpeg image';
+  else if(payload[0]===0x42&&payload[1]===0x4D)ptype='bmp image';
+  addRow(pt,'type',ptype,ptype.includes('elf')||ptype.includes('enc')?'warn':'');
+  setTimeout(()=>{ document.getElementById('pbarFill').style.width=(avg*100)+'%'; },50);
+
+  // hex
+  document.getElementById('hexEmpty').style.display='none';
+  document.getElementById('hexContent').style.display='';
+  const wrap=document.getElementById('hexWrap'); wrap.innerHTML='';
+  const limit=Math.min(allBytes.length,512);
+  for (let i=0;i<limit;i+=16) {
+    const line=document.createElement('div'); line.className='hex-line';
+    const addr=document.createElement('span'); addr.className='hex-addr';
+    addr.textContent='0x'+i.toString(16).padStart(6,'0');
+    const hex=document.createElement('span'); hex.className='hex-bytes';
+    let hexH='',ascii='';
+    for (let j=0;j<16;j++) {
+      const idx=i+j;
+      if(idx>=allBytes.length){hexH+='   ';ascii+=' ';continue;}
+      const b=allBytes[idx];
+      const cls=idx<6?'hl-magic':idx<payloadOffset?'hl-header':'hl-payload';
+      hexH+=`<span class="${cls}">${hb(b)} </span>`;
+      ascii+=b>=0x20&&b<=0x7e?String.fromCharCode(b):'.';
+    }
+    hex.innerHTML=hexH;
+    const asc=document.createElement('span'); asc.className='hex-ascii'; asc.textContent=ascii;
+    line.append(addr,hex,asc); wrap.appendChild(line);
+  }
+  if(allBytes.length>512){
+    const n=document.createElement('div');
+    n.style.cssText='color:var(--dim);font-size:11px;padding-top:6px;font-style:italic;';
+    n.textContent=`… ${allBytes.length-512} more bytes not shown`;
+    wrap.appendChild(n);
+  }
+
+  // strings
+  const strs=extractStrings(allBytes);
+  if(strs.length){
+    document.getElementById('stringsEmpty').style.display='none';
+    const sl=document.getElementById('stringsList'); sl.style.display='';
+    sl.innerHTML=strs.slice(0,300).map(s=>
+      `<div class="str-row"><span class="str-off">0x${s.off.toString(16).padStart(6,'0')}</span><span class="str-val">${esc(s.str)}</span></div>`
+    ).join('');
+  }
+
+  // entropy
+  document.getElementById('entropyEmpty').style.display='none';
+  document.getElementById('entropyContent').style.display='';
+  document.getElementById('entropyEnd').textContent='0x'+allBytes.length.toString(16);
+  const bars=document.getElementById('entropyBars'); bars.innerHTML='';
+  ents.slice(0,128).forEach(e=>{
+    const s=document.createElement('div'); s.className='ent-seg';
+    s.style.height=Math.max(2,e*40)+'px';
+    s.style.background=e>0.88?'var(--orange)':e>0.65?'var(--accent)':'var(--green)';
+    s.title=(e*100).toFixed(1)+'%';
+    bars.appendChild(s);
+  });
+
+  // raw header
+  document.getElementById('rawEmpty').style.display='none';
+  const rp=document.getElementById('rawPre'); rp.style.display='';
+  rp.textContent=headerBytes.map((b,i)=>
+    `[${i.toString().padStart(2,'0')}] 0x${hb(b)}  ${b>=0x20&&b<=0x7e?String.fromCharCode(b):'.'}`
+  ).join('\n');
+}
+
+const dz=document.getElementById('dropZone');
+const fi=document.getElementById('fileInput');
+function handleFile(f) {
+  document.getElementById('statusMsg').textContent='parsing…';
+  const r=new FileReader();
+  r.onload=e=>render(parseKPA(e.target.result));
+  r.readAsArrayBuffer(f);
+}
+dz.addEventListener('click',()=>fi.click());
+fi.addEventListener('change',()=>{ if(fi.files[0])handleFile(fi.files[0]); });
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop',e=>{
+  e.preventDefault(); dz.classList.remove('drag-over');
+  if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);
+});
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
